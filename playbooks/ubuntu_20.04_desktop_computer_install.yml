@@ -1,0 +1,135 @@
+---
+- name: Installation d'un poste de travail local
+  hosts: localhost
+
+  #vars:
+  #  http_proxy: http://192.168.4.22:3128
+  #  os_environment:
+  #    - key: http_proxy
+  #      value: "{{ http_proxy }}"
+  #    - key: https_proxy
+  #      value: "{{ http_proxy }}"
+  #    - key: ftp_proxy
+  #      value: "{{ http_proxy }}"
+  #    - key: HTTP_PROXY
+  #      value: "{{ http_proxy }}"
+  #    - key: HTTPS_PROXY
+  #      value: "{{ http_proxy }}"
+  #    - key: FTP_PROXY
+  #      value: "{{ http_proxy }}"
+  #    - key: no_proxy
+  #      value: localhost,127.0.0.1,wxs-i.ign.fr,10.92.27.202
+
+  tasks:
+    #- name: Configuration du proxy pour apt
+    #  template:
+    #    src: ../templates/90proxy
+    #    dest: /etc/apt/apt.conf.d/90proxy
+    #    mode: 0755
+    #  become: yes
+    #  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+    #
+    #- name: Configuration du proxy pour snap
+    #  lineinfile:
+    #    dest: /etc/systemd/system/snapd.service.d/override.conf
+    #    state: present
+    #    regexp: "^{{ item.key }}="
+    #    line: "{{ item.key }}={{ item.value }}"
+    #  with_items: "{{ [ os_environment[0], os_environment[1] ] }}"
+    #  become: yes
+    # when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+    #  register: snap_proxy_changed
+    #
+    #- name: Configuration des variables d'environnement proxy
+    #  lineinfile:
+    #    dest: /etc/environment
+    #    state: present
+    #    regexp: "^{{ item.key }}="
+    #    line: "{{ item.key }}={{ item.value }}"
+    #  with_items: "{{ os_environment }}"
+    #  become: yes
+    #  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    # Repo QGIS
+    - name: Ajout du dépôt qgis pour apt
+      apt_repository:
+        repo: "deb https://qgis.org/ubuntu focal main"
+        state: present
+        filename: qgis
+      register: apt_qgis_repository_changed
+
+    - name: Ajout de la clé qgis pour apt
+      shell: gpg {{ item }}
+      with_items:
+        - "--keyserver keyserver.ubuntu.com --recv 51F523511C7028C3"
+        - "--export --armor 51F523511C7028C3 | sudo apt-key add -"
+      args:
+        executable: /bin/bash
+      when: apt_qgis_repository_changed.changed
+      
+    # Repo CHROME
+    - name: Ajout du dépôt chrome pour apt
+      apt_repository:
+        repo: "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main"
+        state: present
+        filename: google-chrome
+      register: apt_chrome_repository_changed
+      
+    - name: Ajout de la clé chrome pour apt
+      shell: "wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -"
+      args:
+        executable: /bin/bash
+      when: apt_chrome_repository_changed.changed
+
+    # PACKAGES
+    - name: Mise à jour des anciens packages Ubuntu
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+        upgrade: full
+      become: yes
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    - name: Installation des nouveaux packages Ubuntu
+      apt:
+        package: [git, snapd, qgis, google-chrome-stable]
+        state: latest
+        update_cache: yes
+        cache_valid_time: 3600
+      become: yes
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    #- name: Redémarrage du gestionnaire de service (systemd)
+    #  shell: "systemctl daemon-reload"
+    #  args:
+    #    executable: /bin/bash
+    #  become: yes
+    #  when: snap_proxy_changed.changed
+
+    #- name: Redémarrage du service snapd
+    #  service:
+    #    name: snapd
+    #    state: restarted
+    #  become: yes
+    #  when: snap_proxy_changed.changed
+
+    # VISUAL SOURCE CODE and PYCHARM
+    - name: Installation de Visual Source Code
+      snap:
+        name: [ code, pycharm-community ]
+        classic: yes
+      become: yes
+
+    # CONDA
+    - name: Récupération de l'archive de Conda
+      get_url:
+        url: https://repo.anaconda.com/archive/Anaconda3-2020.07-Linux-x86_64.sh
+        dest: ~/anaconda.sh
+      register: conda_downloaded
+
+    - name: Installation de Conda
+      shell: "/bin/bash ~/anaconda.sh -u -b -p $HOME/anaconda"
+      args:
+        executable: /bin/bash
+      when: conda_downloaded.changed
+...

@@ -1,0 +1,4 @@
+Acquire {
+  HTTP::proxy "{{http_proxy}}";
+  HTTPS::proxy "{{http_proxy}}";
+}
